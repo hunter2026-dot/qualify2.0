@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hunter CRM - Kanban</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    background: #f4f5f7;
+    margin: 0;
+    padding: 20px;
+  }
+  h1 { font-size: 20px; margin: 0 0 16px; color: #1a1a1a; }
+  #board {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    align-items: flex-start;
+    padding-bottom: 20px;
+  }
+  .column {
+    background: #ebecf0;
+    border-radius: 8px;
+    width: 260px;
+    flex-shrink: 0;
+    max-height: calc(100vh - 100px);
+    display: flex;
+    flex-direction: column;
+  }
+  .column-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-top: 4px solid #94a3b8;
+    border-radius: 8px 8px 0 0;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .column-count {
+    font-weight: 400;
+    color: #6b7280;
+    font-size: 12px;
+    margin-left: 6px;
+  }
+  .col-menu-btn {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 16px;
+    color: #6b7280;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .col-menu-btn:hover { background: #d8dade; }
+  .cards {
+    padding: 8px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 40px;
+  }
+  .cards.drag-over { background: #d6e4ff; }
+  .card {
+    background: white;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    cursor: grab;
+  }
+  .card:active { cursor: grabbing; }
+  .card-name { font-weight: 600; font-size: 14px; color: #1a1a1a; }
+  .card-phone { font-size: 12px; color: #6b7280; margin-top: 2px; }
+  .card-source { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+  .add-column {
+    width: 240px;
+    flex-shrink: 0;
+    height: 44px;
+    border: 2px dashed #c1c7d0;
+    background: transparent;
+    border-radius: 8px;
+    color: #5e6c84;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .add-column:hover { background: #ebecf0; }
+  #status { color: #6b7280; font-size: 13px; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<h1>Hunter CRM</h1>
+<div id="status">Carregando...</div>
+<div id="board"></div>
+
+<script>
+// ============================================
+// Lógica pura (testada separadamente antes de entrar aqui)
+// ============================================
+function groupLeadsByStage(leads, stages) {
+  const map = {};
+  stages.forEach(s => { map[s.id] = []; });
+  leads.forEach(lead => {
+    if (map[lead.stage_id]) map[lead.stage_id].push(lead);
+    else if (!map['__sem_coluna__']) map['__sem_coluna__'] = [lead];
+    else map['__sem_coluna__'].push(lead);
+  });
+  return map;
+}
+
+function nextPosition(stages) {
+  if (stages.length === 0) return 1;
+  return Math.max(...stages.map(s => s.position)) + 1;
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ============================================
+// Estado e carregamento de dados
+// ============================================
+let sb;
+let stages = [];
+let leads = [];
+
+async function init() {
+  const statusEl = document.getElementById('status');
+  try {
+    const cfg = await fetch('/api/config').then(r => r.json());
+    if (!cfg.supabaseUrl || !cfg.supabasePublishableKey) {
+      statusEl.textContent = 'Faltam as variáveis SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY na Vercel.';
+      return;
+    }
+    sb = supabase.createClient(cfg.supabaseUrl, cfg.supabasePublishableKey);
+    await loadBoard();
+    statusEl.textContent = '';
+  } catch (err) {
+    statusEl.textContent = 'Erro ao carregar: ' + err.message;
+    console.error(err);
+  }
+}
+
+async function loadBoard() {
+  const { data: stagesData, error: stagesErr } = await sb.from('stages').select('*').order('position');
+  if (stagesErr) throw stagesErr;
+  const { data: leadsData, error: leadsErr } = await sb.from('leads').select('*');
+  if (leadsErr) throw leadsErr;
+  stages = stagesData || [];
+  leads = leadsData || [];
+  render();
+}
+
+// ============================================
+// Renderização
+// ============================================
+function render() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  const grouped = groupLeadsByStage(leads, stages);
+
+  stages.forEach(stage => {
+    const col = document.createElement('div');
+    col.className = 'column';
+
+    const header = document.createElement('div');
+    header.className = 'column-header';
+    header.style.borderTopColor = stage.color || '#94a3b8';
+    header.innerHTML =
+      '<span>' + escapeHtml(stage.name) +
+      '<span class="column-count">(' + (grouped[stage.id] || []).length + ')</span></span>';
+
+    const menuBtn = document.createElement('button');
+    menuBtn.className = 'col-menu-btn';
+    menuBtn.textContent = '⋯';
+    menuBtn.onclick = () => openColumnMenu(stage);
+    header.appendChild(menuBtn);
+
+    const cardsContainer = document.createElement('div');
+    cardsContainer.className = 'cards';
+    cardsContainer.dataset.stageId = stage.id;
+    cardsContainer.addEventListener('dragover', onDragOver);
+    cardsContainer.addEventListener('dragleave', onDragLeave);
+    cardsContainer.addEventListener('drop', onDrop);
+
+    (grouped[stage.id] || []).forEach(lead => {
+      cardsContainer.appendChild(renderCard(lead));
+    });
+
+    col.appendChild(header);
+    col.appendChild(cardsContainer);
+    board.appendChild(col);
+  });
+
+  const addColBtn = document.createElement('button');
+  addColBtn.className = 'add-column';
+  addColBtn.textContent = '+ nova coluna';
+  addColBtn.onclick = createNewStage;
+  board.appendChild(addColBtn);
+}
+
+function renderCard(lead) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.draggable = true;
+  card.dataset.leadId = lead.id;
+  card.innerHTML =
+    '<div class="card-name">' + escapeHtml(lead.name || lead.phone) + '</div>' +
+    '<div class="card-phone">' + escapeHtml(lead.phone) + '</div>' +
+    (lead.source ? '<div class="card-source">' + escapeHtml(lead.source) + '</div>' : '');
+  card.addEventListener('dragstart', e => {
+    e.dataTransfer.setData('text/plain', lead.id);
+  });
+  return card;
+}
+
+// ============================================
+// Arrastar e soltar (mover lead de coluna)
+// ============================================
+function onDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+function onDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+async function onDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const leadId = e.dataTransfer.getData('text/plain');
+  const newStageId = e.currentTarget.dataset.stageId;
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead || lead.stage_id === newStageId) return;
+
+  const { error } = await sb.from('leads').update({ stage_id: newStageId }).eq('id', leadId);
+  if (error) {
+    alert('Não consegui mover o lead: ' + error.message);
+    return;
+  }
+  await loadBoard();
+}
+
+// ============================================
+// Gerenciar colunas (criar / renomear / apagar)
+// ============================================
+async function createNewStage() {
+  const name = prompt('Nome da nova coluna:');
+  if (!name || !name.trim()) return;
+  const boardId = stages[0] ? stages[0].board_id : null;
+  const { error } = await sb.from('stages').insert({
+    name: name.trim(),
+    position: nextPosition(stages),
+    board_id: boardId,
+  });
+  if (error) { alert('Erro ao criar coluna: ' + error.message); return; }
+  await loadBoard();
+}
+
+async function openColumnMenu(stage) {
+  const choice = prompt(
+    'Coluna "' + stage.name + '":\n1 = Renomear\n2 = Apagar\n(qualquer outra tecla cancela)'
+  );
+  if (choice === '1') {
+    const novoNome = prompt('Novo nome:', stage.name);
+    if (!novoNome || !novoNome.trim()) return;
+    const { error } = await sb.from('stages').update({ name: novoNome.trim() }).eq('id', stage.id);
+    if (error) { alert('Erro ao renomear: ' + error.message); return; }
+    await loadBoard();
+  } else if (choice === '2') {
+    const leadsNaColuna = leads.filter(l => l.stage_id === stage.id).length;
+    if (leadsNaColuna > 0) {
+      alert('Essa coluna tem ' + leadsNaColuna + ' lead(s). Mova todos pra outra coluna antes de apagar.');
+      return;
+    }
+    if (!confirm('Apagar a coluna "' + stage.name + '"? Essa ação não pode ser desfeita.')) return;
+    const { error } = await sb.from('stages').delete().eq('id', stage.id);
+    if (error) { alert('Erro ao apagar: ' + error.message); return; }
+    await loadBoard();
+  }
+}
+
+init();
+</script>
+</body>
+</html>
