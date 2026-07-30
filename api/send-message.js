@@ -39,16 +39,29 @@ module.exports = async function handler(req, res) {
 
     const zapiUrl = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-text`;
 
-    const zapiRes = await fetch(zapiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Client-Token': ZAPI_CLIENT_TOKEN,
-      },
-      body: JSON.stringify({ phone, message }),
-    });
+    let zapiRes;
+    try {
+      zapiRes = await fetch(zapiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Client-Token': ZAPI_CLIENT_TOKEN,
+        },
+        body: JSON.stringify({ phone, message }),
+      });
+    } catch (fetchErr) {
+      console.error('Erro ao chamar a Z-API:', fetchErr);
+      return res.status(502).json({ error: 'não consegui conectar na Z-API: ' + fetchErr.message });
+    }
 
-    const zapiData = await zapiRes.json();
+    const rawText = await zapiRes.text();
+    let zapiData;
+    try {
+      zapiData = JSON.parse(rawText);
+    } catch {
+      console.error('Z-API não devolveu JSON:', rawText);
+      return res.status(502).json({ error: 'Z-API devolveu uma resposta inesperada (status ' + zapiRes.status + '): ' + rawText.slice(0, 200) });
+    }
 
     if (!zapiRes.ok) {
       return res.status(502).json({ error: 'Z-API recusou o envio', details: zapiData });
@@ -67,11 +80,14 @@ module.exports = async function handler(req, res) {
         { onConflict: 'z_api_message_id', ignoreDuplicates: true }
       );
 
-    if (msgError) throw msgError;
+    if (msgError) {
+      console.error('Erro ao salvar mensagem no Supabase:', msgError);
+      return res.status(500).json({ error: 'mensagem foi enviada pelo WhatsApp mas não salvou no histórico: ' + msgError.message });
+    }
 
     return res.status(200).json({ ok: true });
   } catch (err) {
     console.error('Erro ao enviar mensagem:', err);
-    return res.status(500).json({ error: 'erro interno ao enviar' });
+    return res.status(500).json({ error: 'erro interno: ' + err.message });
   }
 };
