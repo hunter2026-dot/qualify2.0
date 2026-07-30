@@ -114,15 +114,20 @@ module.exports = async function handler(req, res) {
 
     const leadId = await findOrCreateLead(parsed.phone, parsed.sender_name);
 
-    const { error: msgError } = await supabase.from('messages').insert({
-      lead_id: leadId,
-      direction: parsed.direction,
-      content: parsed.content,
-      media_url: parsed.media_url,
-      media_type: parsed.media_type,
-      z_api_message_id: parsed.z_api_message_id,
-      created_at: parsed.created_at,
-    });
+    const { error: msgError } = await supabase
+      .from('messages')
+      .upsert(
+        {
+          lead_id: leadId,
+          direction: parsed.direction,
+          content: parsed.content,
+          media_url: parsed.media_url,
+          media_type: parsed.media_type,
+          z_api_message_id: parsed.z_api_message_id,
+          created_at: parsed.created_at,
+        },
+        { onConflict: 'z_api_message_id', ignoreDuplicates: true }
+      );
 
     if (msgError) throw msgError;
 
