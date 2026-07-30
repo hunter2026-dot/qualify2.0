@@ -5,96 +5,181 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hunter CRM - Kanban</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+  :root {
+    --ink: #0f1a17;
+    --forest: #103b30;
+    --forest-deep: #0a2820;
+    --moss: #1f6e56;
+    --amber: #e2a53a;
+    --amber-soft: #f4d9a8;
+    --bg: #eef1ee;
+    --paper: #ffffff;
+    --line: #dde3de;
+    --muted: #6b756f;
+  }
   * { box-sizing: border-box; }
   body {
-    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
-    background: #f4f5f7;
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(16,59,48,0.07) 1px, transparent 0);
+    background-size: 22px 22px;
     margin: 0;
-    padding: 20px;
+    color: var(--ink);
   }
-  h1 { font-size: 20px; margin: 0 0 16px; color: #1a1a1a; }
+
+  header {
+    background: var(--forest-deep);
+    padding: 18px 28px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    border-bottom: 3px solid var(--amber);
+  }
+  header .mark {
+    font-family: 'Sora', sans-serif;
+    font-weight: 800;
+    font-size: 19px;
+    color: #fff;
+    letter-spacing: -0.02em;
+  }
+  header .mark span { color: var(--amber); }
+  header .sub {
+    font-size: 12px;
+    color: #9fb8ac;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  main { padding: 22px 28px 40px; }
+
+  #status {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 14px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
   #board {
     display: flex;
-    gap: 14px;
+    gap: 16px;
     overflow-x: auto;
     align-items: flex-start;
-    padding-bottom: 20px;
+    padding-bottom: 24px;
   }
+
   .column {
-    background: #ebecf0;
-    border-radius: 8px;
-    width: 260px;
+    background: var(--paper);
+    border-radius: 10px;
+    width: 268px;
     flex-shrink: 0;
-    max-height: calc(100vh - 100px);
+    max-height: calc(100vh - 140px);
     display: flex;
     flex-direction: column;
+    border: 1px solid var(--line);
+    box-shadow: 0 1px 3px rgba(15,26,23,0.06);
   }
   .column-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 12px;
-    border-top: 4px solid #94a3b8;
-    border-radius: 8px 8px 0 0;
-    font-weight: 600;
-    font-size: 14px;
+    padding: 13px 14px;
+    border-top: 4px solid var(--moss);
+    border-radius: 10px 10px 0 0;
+    font-family: 'Sora', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+    color: var(--forest-deep);
   }
   .column-count {
-    font-weight: 400;
-    color: #6b7280;
-    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    font-size: 11px;
     margin-left: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: none;
   }
   .col-menu-btn {
     border: none;
     background: transparent;
     cursor: pointer;
     font-size: 16px;
-    color: #6b7280;
-    padding: 2px 6px;
-    border-radius: 4px;
+    color: var(--muted);
+    padding: 2px 7px;
+    border-radius: 5px;
+    line-height: 1;
   }
-  .col-menu-btn:hover { background: #d8dade; }
+  .col-menu-btn:hover { background: var(--bg); color: var(--forest-deep); }
+
   .cards {
-    padding: 8px;
+    padding: 10px;
     overflow-y: auto;
     flex: 1;
-    min-height: 40px;
+    min-height: 50px;
+    transition: background 0.12s ease;
   }
-  .cards.drag-over { background: #d6e4ff; }
+  .cards.drag-over { background: var(--amber-soft); border-radius: 0 0 10px 10px; }
+
   .card {
-    background: white;
-    border-radius: 6px;
-    padding: 10px 12px;
-    margin-bottom: 8px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--moss);
+    border-radius: 7px;
+    padding: 11px 12px;
+    margin-bottom: 9px;
     cursor: grab;
+    transition: box-shadow 0.12s ease, transform 0.12s ease;
   }
+  .card:hover { box-shadow: 0 3px 10px rgba(15,26,23,0.12); transform: translateY(-1px); }
   .card:active { cursor: grabbing; }
-  .card-name { font-weight: 600; font-size: 14px; color: #1a1a1a; }
-  .card-phone { font-size: 12px; color: #6b7280; margin-top: 2px; }
-  .card-source { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+  .card-name { font-weight: 600; font-size: 13.5px; color: var(--ink); }
+  .card-phone {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 3px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .card-source {
+    display: inline-block;
+    font-size: 10.5px;
+    color: var(--forest);
+    background: #e4ede9;
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-top: 6px;
+    font-weight: 500;
+  }
+
   .add-column {
-    width: 240px;
+    width: 248px;
     flex-shrink: 0;
-    height: 44px;
-    border: 2px dashed #c1c7d0;
+    height: 46px;
+    border: 2px dashed #c3ccc6;
     background: transparent;
-    border-radius: 8px;
-    color: #5e6c84;
-    font-size: 14px;
+    border-radius: 10px;
+    color: var(--forest);
+    font-family: 'Sora', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
     cursor: pointer;
   }
-  .add-column:hover { background: #ebecf0; }
-  #status { color: #6b7280; font-size: 13px; margin-bottom: 10px; }
+  .add-column:hover { background: var(--paper); border-color: var(--moss); }
 </style>
 </head>
 <body>
 
-<h1>Hunter CRM</h1>
-<div id="status">Carregando...</div>
-<div id="board"></div>
+<header>
+  <span class="mark">hunter<span>.</span>crm</span>
+  <span class="sub">/ pipeline</span>
+</header>
+<main>
+  <div id="status">carregando...</div>
+  <div id="board"></div>
+</main>
 
 <script>
 // ============================================
