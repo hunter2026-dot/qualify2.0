@@ -1,4 +1,177 @@
-@@ -168,6 +168,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hunter CRM - Kanban</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0f1a17;
+    --forest: #103b30;
+    --forest-deep: #0a2820;
+    --moss: #1f6e56;
+    --amber: #e2a53a;
+    --amber-soft: #f4d9a8;
+    --bg: #eef1ee;
+    --paper: #ffffff;
+    --line: #dde3de;
+    --muted: #6b756f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(16,59,48,0.07) 1px, transparent 0);
+    background-size: 22px 22px;
+    margin: 0;
+    color: var(--ink);
+  }
+
+  header {
+    background: var(--forest-deep);
+    padding: 18px 28px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    border-bottom: 3px solid var(--amber);
+  }
+  header .mark {
+    font-family: 'Sora', sans-serif;
+    font-weight: 800;
+    font-size: 19px;
+    color: #fff;
+    letter-spacing: -0.02em;
+  }
+  header .mark span { color: var(--amber); }
+  .tabs { display: flex; gap: 4px; margin-left: 8px; }
+  .tab {
+    font-family: 'Sora', sans-serif; font-weight: 600; font-size: 12.5px;
+    color: #9fb8ac; text-decoration: none; padding: 6px 12px; border-radius: 6px;
+  }
+  .tab:hover { color: white; background: rgba(255,255,255,0.06); }
+  .tab.active { color: white; background: var(--forest); }
+  header .sub {
+    font-size: 12px;
+    color: #9fb8ac;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  main { padding: 22px 28px 40px; }
+
+  #status {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 14px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  #board {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    align-items: flex-start;
+    padding-bottom: 24px;
+  }
+
+  .column {
+    background: var(--paper);
+    border-radius: 10px;
+    width: 268px;
+    flex-shrink: 0;
+    max-height: calc(100vh - 140px);
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    box-shadow: 0 1px 3px rgba(15,26,23,0.06);
+  }
+  .column-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 13px 14px;
+    border-top: 4px solid var(--moss);
+    border-radius: 10px 10px 0 0;
+    font-family: 'Sora', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+    color: var(--forest-deep);
+  }
+  .column-count {
+    font-weight: 500;
+    color: var(--muted);
+    font-size: 11px;
+    margin-left: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: none;
+  }
+  .col-menu-btn {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 16px;
+    color: var(--muted);
+    padding: 2px 7px;
+    border-radius: 5px;
+    line-height: 1;
+  }
+  .col-menu-btn:hover { background: var(--bg); color: var(--forest-deep); }
+
+  .cards {
+    padding: 10px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 50px;
+    transition: background 0.12s ease;
+  }
+  .cards.drag-over { background: var(--amber-soft); border-radius: 0 0 10px 10px; }
+
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--moss);
+    border-radius: 7px;
+    padding: 11px 12px;
+    margin-bottom: 9px;
+    cursor: grab;
+    transition: box-shadow 0.12s ease, transform 0.12s ease;
+  }
+  .card:hover { box-shadow: 0 3px 10px rgba(15,26,23,0.12); transform: translateY(-1px); }
+  .card:active { cursor: grabbing; }
+  .card-name { font-weight: 600; font-size: 13.5px; color: var(--ink); }
+  .card-phone {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 3px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .card-source {
+    display: inline-block;
+    font-size: 10.5px;
+    color: var(--forest);
+    background: #e4ede9;
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-top: 6px;
+    font-weight: 500;
+  }
+
+  .add-column {
+    width: 248px;
+    flex-shrink: 0;
+    height: 46px;
+    border: 2px dashed #c3ccc6;
+    background: transparent;
+    border-radius: 10px;
+    color: var(--forest);
+    font-family: 'Sora', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
     cursor: pointer;
   }
   .add-column:hover { background: var(--paper); border-color: var(--moss); }
@@ -114,7 +287,16 @@
 </style>
 </head>
 <body>
-@@ -181,6 +290,22 @@
+
+<header>
+  <span class="mark">hunter<span>.</span>crm</span>
+  <nav class="tabs">
+    <a href="/" class="tab active">Pipeline</a>
+    <a href="/disparo.html" class="tab">Disparos</a>
+  </nav>
+</header>
+<main>
+  <div id="status">carregando...</div>
   <div id="board"></div>
 </main>
 
@@ -137,7 +319,124 @@
 <script>
 // ============================================
 // Lógica pura (testada separadamente antes de entrar aqui)
-@@ -305,9 +430,105 @@
+// ============================================
+function groupLeadsByStage(leads, stages) {
+  const map = {};
+  stages.forEach(s => { map[s.id] = []; });
+  leads.forEach(lead => {
+    if (map[lead.stage_id]) map[lead.stage_id].push(lead);
+    else if (!map['__sem_coluna__']) map['__sem_coluna__'] = [lead];
+    else map['__sem_coluna__'].push(lead);
+  });
+  return map;
+}
+
+function nextPosition(stages) {
+  if (stages.length === 0) return 1;
+  return Math.max(...stages.map(s => s.position)) + 1;
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ============================================
+// Estado e carregamento de dados
+// ============================================
+let sb;
+let stages = [];
+let leads = [];
+
+async function init() {
+  const statusEl = document.getElementById('status');
+  try {
+    const cfg = await fetch('/api/config').then(r => r.json());
+    if (!cfg.supabaseUrl || !cfg.supabasePublishableKey) {
+      statusEl.textContent = 'Faltam as variáveis SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY na Vercel.';
+      return;
+    }
+    sb = supabase.createClient(cfg.supabaseUrl, cfg.supabasePublishableKey);
+    await loadBoard();
+    statusEl.textContent = '';
+  } catch (err) {
+    statusEl.textContent = 'Erro ao carregar: ' + err.message;
+    console.error(err);
+  }
+}
+
+async function loadBoard() {
+  const { data: stagesData, error: stagesErr } = await sb.from('stages').select('*').order('position');
+  if (stagesErr) throw stagesErr;
+  const { data: leadsData, error: leadsErr } = await sb.from('leads').select('*');
+  if (leadsErr) throw leadsErr;
+  stages = stagesData || [];
+  leads = leadsData || [];
+  render();
+}
+
+// ============================================
+// Renderização
+// ============================================
+function render() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  const grouped = groupLeadsByStage(leads, stages);
+
+  stages.forEach(stage => {
+    const col = document.createElement('div');
+    col.className = 'column';
+
+    const header = document.createElement('div');
+    header.className = 'column-header';
+    header.style.borderTopColor = stage.color || '#94a3b8';
+    header.innerHTML =
+      '<span>' + escapeHtml(stage.name) +
+      '<span class="column-count">(' + (grouped[stage.id] || []).length + ')</span></span>';
+
+    const menuBtn = document.createElement('button');
+    menuBtn.className = 'col-menu-btn';
+    menuBtn.textContent = '⋯';
+    menuBtn.onclick = () => openColumnMenu(stage);
+    header.appendChild(menuBtn);
+
+    const cardsContainer = document.createElement('div');
+    cardsContainer.className = 'cards';
+    cardsContainer.dataset.stageId = stage.id;
+    cardsContainer.addEventListener('dragover', onDragOver);
+    cardsContainer.addEventListener('dragleave', onDragLeave);
+    cardsContainer.addEventListener('drop', onDrop);
+
+    (grouped[stage.id] || []).forEach(lead => {
+      cardsContainer.appendChild(renderCard(lead));
+    });
+
+    col.appendChild(header);
+    col.appendChild(cardsContainer);
+    board.appendChild(col);
+  });
+
+  const addColBtn = document.createElement('button');
+  addColBtn.className = 'add-column';
+  addColBtn.textContent = '+ nova coluna';
+  addColBtn.onclick = createNewStage;
+  board.appendChild(addColBtn);
+}
+
+function renderCard(lead) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.draggable = true;
+  card.dataset.leadId = lead.id;
+  card.innerHTML =
+    '<div class="card-name">' + escapeHtml(lead.name || lead.phone) + '</div>' +
+    '<div class="card-phone">' + escapeHtml(lead.phone) + '</div>' +
+    (lead.source ? '<div class="card-source">' + escapeHtml(lead.source) + '</div>' : '');
   card.addEventListener('dragstart', e => {
     e.dataTransfer.setData('text/plain', lead.id);
   });
@@ -243,3 +542,69 @@ document.getElementById('chat-input').addEventListener('keydown', e => {
 // ============================================
 // Arrastar e soltar (mover lead de coluna)
 // ============================================
+function onDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+function onDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+async function onDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const leadId = e.dataTransfer.getData('text/plain');
+  const newStageId = e.currentTarget.dataset.stageId;
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead || lead.stage_id === newStageId) return;
+
+  const { error } = await sb.from('leads').update({ stage_id: newStageId }).eq('id', leadId);
+  if (error) {
+    alert('Não consegui mover o lead: ' + error.message);
+    return;
+  }
+  await loadBoard();
+}
+
+// ============================================
+// Gerenciar colunas (criar / renomear / apagar)
+// ============================================
+async function createNewStage() {
+  const name = prompt('Nome da nova coluna:');
+  if (!name || !name.trim()) return;
+  const boardId = stages[0] ? stages[0].board_id : null;
+  const { error } = await sb.from('stages').insert({
+    name: name.trim(),
+    position: nextPosition(stages),
+    board_id: boardId,
+  });
+  if (error) { alert('Erro ao criar coluna: ' + error.message); return; }
+  await loadBoard();
+}
+
+async function openColumnMenu(stage) {
+  const choice = prompt(
+    'Coluna "' + stage.name + '":\n1 = Renomear\n2 = Apagar\n(qualquer outra tecla cancela)'
+  );
+  if (choice === '1') {
+    const novoNome = prompt('Novo nome:', stage.name);
+    if (!novoNome || !novoNome.trim()) return;
+    const { error } = await sb.from('stages').update({ name: novoNome.trim() }).eq('id', stage.id);
+    if (error) { alert('Erro ao renomear: ' + error.message); return; }
+    await loadBoard();
+  } else if (choice === '2') {
+    const leadsNaColuna = leads.filter(l => l.stage_id === stage.id).length;
+    if (leadsNaColuna > 0) {
+      alert('Essa coluna tem ' + leadsNaColuna + ' lead(s). Mova todos pra outra coluna antes de apagar.');
+      return;
+    }
+    if (!confirm('Apagar a coluna "' + stage.name + '"? Essa ação não pode ser desfeita.')) return;
+    const { error } = await sb.from('stages').delete().eq('id', stage.id);
+    if (error) { alert('Erro ao apagar: ' + error.message); return; }
+    await loadBoard();
+  }
+}
+
+init();
+</script>
+</body>
+</html>
