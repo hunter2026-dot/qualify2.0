@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hunter CRM - Disparo em massa</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0f1a17; --forest: #103b30; --forest-deep: #0a2820;
+    --moss: #1f6e56; --amber: #e2a53a; --amber-soft: #f4d9a8;
+    --bg: #eef1ee; --paper: #ffffff; --line: #dde3de; --muted: #6b756f;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; color: var(--ink); }
+  header {
+    background: var(--forest-deep); padding: 18px 28px; display: flex;
+    align-items: baseline; gap: 16px; border-bottom: 3px solid var(--amber);
+  }
+  header .mark { font-family: 'Sora', sans-serif; font-weight: 800; font-size: 19px; color: #fff; }
+  header .mark span { color: var(--amber); }
+  .tabs { display: flex; gap: 4px; margin-left: 8px; }
+  .tab {
+    font-family: 'Sora', sans-serif; font-weight: 600; font-size: 12.5px;
+    color: #9fb8ac; text-decoration: none; padding: 6px 12px; border-radius: 6px;
+  }
+  .tab:hover { color: white; background: rgba(255,255,255,0.06); }
+  .tab.active { color: white; background: var(--forest); }
+
+  main { padding: 24px 28px 60px; max-width: 780px; }
+  h2 { font-family: 'Sora', sans-serif; font-size: 15px; color: var(--forest-deep); margin: 28px 0 10px; }
+  h2:first-of-type { margin-top: 0; }
+
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+
+  textarea, input[type=text] {
+    width: 100%; font-family: 'Inter', sans-serif; font-size: 13.5px;
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+  }
+  textarea:focus, input:focus { outline: none; border-color: var(--moss); }
+  #template-text { min-height: 110px; resize: vertical; }
+
+  .row { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  label.small { font-size: 12px; color: var(--muted); font-weight: 500; }
+
+  button {
+    font-family: 'Sora', sans-serif; font-weight: 600; font-size: 13px;
+    border: none; border-radius: 8px; padding: 9px 16px; cursor: pointer;
+  }
+  .btn-primary { background: var(--forest); color: white; }
+  .btn-primary:hover { background: var(--forest-deep); }
+  .btn-primary:disabled { background: #b7c0ba; cursor: default; }
+  .btn-secondary { background: transparent; border: 1px solid var(--line); color: var(--forest-deep); }
+  .btn-secondary:hover { background: var(--bg); }
+
+  input[type=file] { font-size: 13px; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12.5px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; }
+  td.phone { font-family: 'JetBrains Mono', monospace; }
+  .badge { display: inline-block; font-size: 10.5px; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+  .badge.pendente { background: #eef1ee; color: var(--muted); }
+  .badge.enviando { background: var(--amber-soft); color: #7a5417; }
+  .badge.enviado { background: #dcefe6; color: var(--moss); }
+  .badge.erro { background: #fbe1e1; color: #a13939; }
+
+  #progress-wrap { margin-top: 14px; display: none; }
+  #progress-bar-bg { background: var(--line); border-radius: 6px; height: 10px; overflow: hidden; }
+  #progress-bar-fill { background: var(--moss); height: 100%; width: 0%; transition: width 0.25s ease; }
+  #progress-label { font-size: 12px; color: var(--muted); margin-top: 6px; font-family: 'JetBrains Mono', monospace; }
+
+  #status { color: var(--muted); font-size: 13px; margin-bottom: 14px; font-family: 'JetBrains Mono', monospace; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="mark">hunter<span>.</span>crm</span>
+  <nav class="tabs">
+    <a href="/" class="tab">Pipeline</a>
+    <a href="/disparo.html" class="tab active">Disparos</a>
+  </nav>
+</header>
+<main>
+  <div id="status"></div>
+
+  <h2>1. Mensagem-modelo (editável, sempre)</h2>
+  <div class="card">
+    <textarea id="template-text" placeholder="Carregando..."></textarea>
+    <div class="row">
+      <button class="btn-secondary" id="save-template">Salvar mensagem</button>
+      <span id="template-saved" style="font-size:12px;color:var(--moss);"></span>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <label class="small" style="min-width:110px;">Indicador desta leva</label>
+      <input type="text" id="indicador-input" placeholder="Ex: Dr. Caik" style="max-width:260px;">
+    </div>
+    <p style="font-size:11.5px;color:var(--muted);margin:10px 0 0;">
+      Use <code>[Primeiro nome da Indicação]</code> e <code>[Indicador]</code> em qualquer lugar do texto —
+      eles são trocados automaticamente na hora do envio. Se um contato não tiver primeiro nome
+      preenchido, esse pedaço é removido sozinho da frase.
+    </p>
+  </div>
+
+  <h2>2. Lista de contatos (CSV)</h2>
+  <div class="card">
+    <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">
+      Formato esperado: colunas <code>nome_completo_salvo, telefone, primeiro_nome_para_mensagem</code>
+      (a primeira linha, de cabeçalho, é ignorada).
+    </p>
+    <input type="file" id="csv-file" accept=".csv">
+    <div id="preview-wrap" style="display:none;">
+      <table id="preview-table">
+        <thead><tr><th>Nome salvo</th><th>Telefone</th><th>1º nome</th><th>Prévia da mensagem</th><th>Status</th></tr></thead>
+        <tbody id="preview-body"></tbody>
+      </table>
+      <div class="row">
+        <button class="btn-primary" id="start-send">Criar leads e iniciar disparo</button>
+        <span id="count-label" style="font-size:12px;color:var(--muted);"></span>
+      </div>
+      <div id="progress-wrap">
+        <div id="progress-bar-bg"><div id="progress-bar-fill"></div></div>
+        <div id="progress-label"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+function fillTemplate(template, { primeiroNome, indicador }) {
+  let text = template;
+  if (primeiroNome && primeiroNome.trim()) {
+    text = text.split('[Primeiro nome da Indicação]').join(primeiroNome.trim());
+  } else {
+    text = text.split(' [Primeiro nome da Indicação]').join('');
+    text = text.split('[Primeiro nome da Indicação]').join('');
+  }
+  if (indicador && indicador.trim()) {
+    text = text.split('[Indicador]').join(indicador.trim());
+  } else {
+    text = text.split('[Indicador]').join('quem te indicou');
+  }
+  return text;
+}
+
+// Parser simples de CSV com suporte a campos entre aspas
+function parseCsv(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) { // pula cabeçalho
+    const line = lines[i];
+    const fields = [];
+    let cur = '', inQuotes = false;
+    for (let j = 0; j < line.length; j++) {
+      const c = line[j];
+      if (c === '"') { inQuotes = !inQuotes; }
+      else if (c === ',' && !inQuotes) { fields.push(cur); cur = ''; }
+      else { cur += c; }
+    }
+    fields.push(cur);
+    if (fields.length >= 2) {
+      rows.push({
+        nome: (fields[0] || '').trim(),
+        telefone: (fields[1] || '').trim().replace(/\D/g, ''),
+        primeiroNome: (fields[2] || '').trim(),
+      });
+    }
+  }
+  return rows;
+}
+
+let sb;
+let parsedContacts = [];
+
+async function init() {
+  const cfg = await fetch('/api/config').then(r => r.json());
+  sb = supabase.createClient(cfg.supabaseUrl, cfg.supabasePublishableKey);
+  await loadTemplate();
+}
+
+async function loadTemplate() {
+  const { data, error } = await sb.from('message_templates').select('*').eq('name', 'indicacao').maybeSingle();
+  if (error || !data) {
+    document.getElementById('status').textContent = 'Ainda não existe mensagem-modelo salva. Escreva uma e clique em Salvar.';
+    document.getElementById('template-text').value = '';
+    return;
+  }
+  document.getElementById('template-text').value = data.content;
+}
+
+document.getElementById('save-template').addEventListener('click', async () => {
+  const content = document.getElementById('template-text').value;
+  const { error } = await sb
+    .from('message_templates')
+    .upsert({ name: 'indicacao', content, updated_at: new Date().toISOString() }, { onConflict: 'name' });
+  const savedLabel = document.getElementById('template-saved');
+  if (error) {
+    savedLabel.style.color = '#a13939';
+    savedLabel.textContent = 'Erro ao salvar: ' + error.message;
+  } else {
+    savedLabel.style.color = 'var(--moss)';
+    savedLabel.textContent = 'Salvo ✓';
+    setTimeout(() => savedLabel.textContent = '', 2500);
+  }
+  renderPreview();
+});
+
+document.getElementById('csv-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  parsedContacts = parseCsv(text).map(c => ({ ...c, status: 'pendente' }));
+  document.getElementById('preview-wrap').style.display = 'block';
+  document.getElementById('count-label').textContent = parsedContacts.length + ' contato(s) na lista';
+  renderPreview();
+});
+
+document.getElementById('indicador-input').addEventListener('input', renderPreview);
+
+function renderPreview() {
+  if (parsedContacts.length === 0) return;
+  const template = document.getElementById('template-text').value;
+  const indicador = document.getElementById('indicador-input').value;
+  const tbody = document.getElementById('preview-body');
+  tbody.innerHTML = '';
+  parsedContacts.forEach((c, idx) => {
+    const msg = fillTemplate(template, { primeiroNome: c.primeiroNome, indicador });
+    const tr = document.createElement('tr');
+    tr.id = 'row-' + idx;
+    tr.innerHTML =
+      '<td>' + escapeHtml(c.nome) + '</td>' +
+      '<td class="phone">' + escapeHtml(c.telefone) + '</td>' +
+      '<td>' + escapeHtml(c.primeiroNome || '(sem nome)') + '</td>' +
+      '<td style="max-width:260px;font-size:11.5px;color:var(--muted);">' + escapeHtml(msg.split('\n')[0]) + '</td>' +
+      '<td><span class="badge pendente" id="badge-' + idx + '">pendente</span></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function setBadge(idx, status) {
+  const el = document.getElementById('badge-' + idx);
+  if (!el) return;
+  el.className = 'badge ' + status;
+  el.textContent = status;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+document.getElementById('start-send').addEventListener('click', async () => {
+  if (parsedContacts.length === 0) return;
+  if (!confirm('Vai criar ' + parsedContacts.length + ' leads e mandar mensagem pra cada um, com intervalo entre os envios. Confirma?')) return;
+
+  const startBtn = document.getElementById('start-send');
+  startBtn.disabled = true;
+  const template = document.getElementById('template-text').value;
+  const indicador = document.getElementById('indicador-input').value;
+
+  document.getElementById('progress-wrap').style.display = 'block';
+  const fill = document.getElementById('progress-bar-fill');
+  const label = document.getElementById('progress-label');
+
+  let ok = 0, falhas = 0;
+
+  for (let i = 0; i < parsedContacts.length; i++) {
+    const c = parsedContacts[i];
+    setBadge(i, 'enviando');
+    label.textContent = 'Enviando ' + (i + 1) + ' de ' + parsedContacts.length + '...';
+    fill.style.width = Math.round((i / parsedContacts.length) * 100) + '%';
+
+    try {
+      // 1) cria (ou reaproveita) o lead
+      let leadId;
+      const { data: existing } = await sb.from('leads').select('id').eq('phone', c.telefone).maybeSingle();
+      if (existing) {
+        leadId = existing.id;
+        await sb.from('leads').update({
+          name: c.nome, first_name: c.primeiroNome || null, referred_by: indicador || null, source: 'indicação',
+        }).eq('id', leadId);
+      } else {
+        const { data: created, error: createErr } = await sb.from('leads').insert({
+          phone: c.telefone, name: c.nome, first_name: c.primeiroNome || null,
+          referred_by: indicador || null, source: 'indicação',
+        }).select('id').single();
+        if (createErr) throw createErr;
+        leadId = created.id;
+      }
+
+      // 2) monta e manda a mensagem
+      const message = fillTemplate(template, { primeiroNome: c.primeiroNome, indicador });
+      const res = await fetch('/api/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId, phone: c.telefone, message }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'falha no envio');
+
+      setBadge(i, 'enviado');
+      ok++;
+    } catch (err) {
+      console.error('Erro no contato', c, err);
+      setBadge(i, 'erro');
+      falhas++;
+    }
+
+    fill.style.width = Math.round(((i + 1) / parsedContacts.length) * 100) + '%';
+
+    // intervalo entre mensagens pra não levar o número a ser marcado como spam
+    if (i < parsedContacts.length - 1) {
+      await sleep(6000);
+    }
+  }
+
+  label.textContent = 'Concluído: ' + ok + ' enviada(s), ' + falhas + ' com erro.';
+  startBtn.disabled = false;
+});
+
+init();
+</script>
+</body>
+</html>
