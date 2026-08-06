@@ -103,8 +103,14 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'method not allowed' });
   }
 
+  // --- LOG TEMPORÁRIO DE DIAGNÓSTICO ---
+  // Isso aparece na aba "Logs" do projeto na Vercel. Depois de resolvermos
+  // o problema, dá pra tirar essas duas linhas (ou deixar, não atrapalha).
+  console.log('ZAPI webhook recebido:', JSON.stringify(req.body));
+
   try {
     const parsed = parseZapiPayload(req.body);
+    console.log('ZAPI resultado do parser:', JSON.stringify(parsed));
 
     // Evento que não é mensagem de conversa (reação, notificação, grupo) -- ignora
     // mas responde 200 pra Z-API não ficar tentando de novo.
@@ -114,15 +120,20 @@ module.exports = async function handler(req, res) {
 
     const leadId = await findOrCreateLead(parsed.phone, parsed.sender_name);
 
-    const { error: msgError } = await supabase.from('messages').insert({
-      lead_id: leadId,
-      direction: parsed.direction,
-      content: parsed.content,
-      media_url: parsed.media_url,
-      media_type: parsed.media_type,
-      z_api_message_id: parsed.z_api_message_id,
-      created_at: parsed.created_at,
-    });
+    const { error: msgError } = await supabase
+      .from('messages')
+      .upsert(
+        {
+          lead_id: leadId,
+          direction: parsed.direction,
+          content: parsed.content,
+          media_url: parsed.media_url,
+          media_type: parsed.media_type,
+          z_api_message_id: parsed.z_api_message_id,
+          created_at: parsed.created_at,
+        },
+        { onConflict: 'z_api_message_id', ignoreDuplicates: true }
+      );
 
     if (msgError) throw msgError;
 
